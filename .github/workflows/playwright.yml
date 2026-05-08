@@ -7,6 +7,10 @@ on:
 
   workflow_dispatch:
 
+  repository_dispatch:
+    types:
+      - run-playwright-tests
+
 jobs:
   test:
     runs-on: ubuntu-latest
