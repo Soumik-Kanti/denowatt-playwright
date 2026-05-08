@@ -1,10 +1,13 @@
 package org.example;
 
 import com.microsoft.playwright.*;
-import com.microsoft.playwright.options.*;
+import com.microsoft.playwright.options.AriaRole;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+
+import java.util.UUID;
+import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
@@ -15,14 +18,26 @@ public class ExampleTest {
     BrowserContext context;
     Page page;
 
+    private String getRequiredEnv(String key) {
+        String value = System.getenv(key);
+
+        if (value == null || value.trim().isEmpty()) {
+            throw new RuntimeException("Missing required GitHub Secret or environment variable: " + key);
+        }
+
+        return value;
+    }
+
     @BeforeClass
     public void openBrowser() {
         playwright = Playwright.create();
 
+        boolean isGithubAction = "true".equalsIgnoreCase(System.getenv("CI"));
+
         browser = playwright.chromium().launch(
                 new BrowserType.LaunchOptions()
-                        .setHeadless(false)
-                        .setSlowMo(700)
+                        .setHeadless(isGithubAction)
+                        .setSlowMo(isGithubAction ? 0 : 700)
         );
 
         context = browser.newContext();
@@ -33,8 +48,13 @@ public class ExampleTest {
         page.navigate("https://dev.portal.denowatts.com/signin");
     }
 
-    @Test(priority = 1)
-    public void loginAndProjectSectionTest() {
+    @Test
+    public void createNewSiteFullFlowTest() {
+        String email = getRequiredEnv("DENOWATT_EMAIL");
+        String password = getRequiredEnv("DENOWATT_PASSWORD");
+
+        String projectName = "solar_" + UUID.randomUUID().toString().substring(0, 6);
+
         page.getByRole(
                 AriaRole.TEXTBOX,
                 new Page.GetByRoleOptions().setName("Enter your email address")
@@ -58,7 +78,7 @@ public class ExampleTest {
         page.getByRole(
                 AriaRole.TEXTBOX,
                 new Page.GetByRoleOptions().setName("* What's the name of this")
-        ).fill("solar_02");
+        ).fill(projectName);
 
         page.getByRole(
                 AriaRole.TEXTBOX,
@@ -69,10 +89,7 @@ public class ExampleTest {
                 AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("Continue to Location")
         ).click();
-    }
 
-    @Test(priority = 2)
-    public void locationAndDetailsSectionTest() {
         page.getByRole(
                 AriaRole.TEXTBOX,
                 new Page.GetByRoleOptions().setName("* Project Address")
@@ -83,9 +100,11 @@ public class ExampleTest {
                 new Page.GetByRoleOptions().setName("* City")
         ).fill("Dhaka");
 
+        // Important:
+        // If the correct requirement is "State", this test will fail if developer writes "States".
         page.getByRole(
                 AriaRole.COMBOBOX,
-                new Page.GetByRoleOptions().setName("* States")
+                new Page.GetByRoleOptions().setName(Pattern.compile("^\\*\\s*State$"))
         ).click();
 
         page.getByText("Alabama").click();
@@ -105,7 +124,6 @@ public class ExampleTest {
                 new Page.GetByRoleOptions().setName("Continue to Details")
         ).click();
 
-        // Ant Design checkbox fix
         page.locator("label")
                 .filter(new Locator.FilterOptions().setHasText("Rooftop"))
                 .click();
@@ -125,13 +143,9 @@ public class ExampleTest {
                 AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("Continue to Services")
         ).click();
-    }
 
-    @Test(priority = 3)
-    public void servicesAndReviewSectionTest() {
         page.getByText("4", new Page.GetByTextOptions().setExact(true)).click();
 
-        // Ant Design checkbox fix
         page.locator("label")
                 .filter(new Locator.FilterOptions().setHasText("Do you need a capacity test?"))
                 .click();
@@ -142,19 +156,20 @@ public class ExampleTest {
         ).click();
 
         assertThat(page.getByText("Review & Customize Your Quote")).isVisible();
-
-        page.locator(".ant-table-cell.ant-table-cell-row-hover > .flex.w-full > .flex > svg:nth-child(3)").click();
-
-        page.getByRole(
-                AriaRole.IMG,
-                new Page.GetByRoleOptions().setName("Profile menu")
-        ).click();
     }
 
-    @AfterClass
+    @AfterClass(alwaysRun = true)
     public void closeBrowser() {
-        context.close();
-        browser.close();
-        playwright.close();
+        if (context != null) {
+            context.close();
+        }
+
+        if (browser != null) {
+            browser.close();
+        }
+
+        if (playwright != null) {
+            playwright.close();
+        }
     }
 }
