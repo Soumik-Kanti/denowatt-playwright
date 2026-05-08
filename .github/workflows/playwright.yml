@@ -1,5 +1,7 @@
 name: Run Playwright Java Tests
 
+run-name: Playwright Tests ${{ github.event.client_payload.trigger_id || github.sha }}
+
 on:
   push:
     branches:
