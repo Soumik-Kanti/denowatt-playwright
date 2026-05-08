@@ -1,0 +1,41 @@
+name: Run Playwright Java Tests
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download test repo code
+        uses: actions/checkout@v4
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Maven dependencies
+        run: mvn clean install -DskipTests
+
+      - name: Install Playwright browsers
+        run: mvn exec:java -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install --with-deps chromium"
+
+      - name: Run Playwright tests
+        env:
+          DENOWATT_EMAIL: ${{ secrets.DENOWATT_EMAIL }}
+          DENOWATT_PASSWORD: ${{ secrets.DENOWATT_PASSWORD }}
+        run: mvn test
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: target/surefire-reports
